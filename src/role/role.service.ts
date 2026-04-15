@@ -1,7 +1,9 @@
-import { ConflictException,Injectable } from '@nestjs/common';
+import { ConflictException, ExceptionFilter, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma, Role } from '@prisma/client';
+import { ExecException } from 'node:child_process';
 
 @Injectable()
 export class RoleService {
@@ -16,7 +18,7 @@ export class RoleService {
     })
 
     if (role)
-     throw new ConflictException('Role này đã tồn tại trong hệ thống');
+      throw new ConflictException('Name role existed');
     else
       return await this.prismaService.role.create(
         {
@@ -27,19 +29,69 @@ export class RoleService {
       )
   }
 
-  findAll() {
-    return `This action returns all role`;
+  async findAll(): Promise<Role[]> {
+    return await this.prismaService.role.findMany();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} role`;
+  async findOne(id: string): Promise<Role> {
+    const role = await this.prismaService.role.findFirst({
+      where: {
+        roleID: id
+      }
+    })
+    if (!role) {
+      throw new NotFoundException('Role id is not exist ');
+    }
+
+    return role
   }
 
-  update(id: number, updateRoleDto: UpdateRoleDto) {
-    return `This action updates a #${id} role`;
+  async update(id: string, updateRoleDto: UpdateRoleDto): Promise<Role | undefined> {
+    const role = this.prismaService.role.findFirst({
+      where: {
+        roleID: id
+      }
+    })
+
+    if (!role)
+      throw new NotFoundException('Role id is not exist')
+    try{
+    const newRole = await this.prismaService.role.update({
+      where: {
+        roleID: id
+      },
+      data: {
+        nameRole: updateRoleDto.nameRole
+      }
+    })
+    return newRole
+  }
+  catch(err){
+   
+   if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2002') {
+    throw new ConflictException('The role\'s name must be unique');
+
+      }
+    }
+  }
+    return undefined
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} role`;
+  async remove(id: string) {
+    const role = await this.prismaService.role.findFirst({
+      where :{
+        roleID : id
+      }
+    })
+
+    if (!role)
+      throw new NotFoundException('Role id  is not exist');
+
+    await this.prismaService.role.delete({
+      where :{
+        roleID :id
+      }
+    })
   }
 }

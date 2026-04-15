@@ -21,6 +21,11 @@ async function bootstrap() {
     forbidNonWhitelisted: true,    // Trả về lỗi nếu có field lạ gửi lên
     transform: true,               // Tự động convert kiểu dữ liệu (vd: string "1" thành number 1)
   }));
-  await app.listen(process.env.PORT ?? 3000);
+
+  const port = process.env.PORT ?? 3000
+  await app.listen(port);
+
+  console.log(`The website run at localhost:${port}`)
+  
 }
 bootstrap();
