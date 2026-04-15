@@ -1,0 +1,202 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Hoặc "mysql" tùy vào DB bạn sử dụng
+}
+
+model User {
+  userID            String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  username          String    @unique
+  hashedPassword    String
+  name              String
+  linkAvatar        String    @default("../images/avatardefault.png")
+  salaryCoefficient Float
+  birthday          DateTime?
+  remainDaysofLeave Int
+  totalDaysofLeave  Int
+  isActive          Boolean?  @default(true)
+
+  // Foreign keys
+  roleId            String    @db.Uuid
+  departmentID      String?   @db.Uuid
+
+  // Relations
+  role              Role        @relation(fields: [roleId], references: [roleID])
+  department        Department? @relation("UserInDepartment", fields: [departmentID], references: [departmentID])
+  
+  managedDepartments Department[] @relation("DepartmentManager")
+  
+  leaveApplicationsSent     LeaveApplication[] @relation("Sender")
+  leaveApplicationsReviewed LeaveApplication[] @relation("Reviewer")
+  
+  notificationsSent     Notification[] @relation("NotiSender")
+  notificationsReceived Notification[] @relation("NotiReceiver")
+  
+  warnings              Warning[]
+  
+  monthlyTimesheets     MonthlyTimesheet[] @relation("EmployeeTimesheet")
+  reviewedTimesheets    MonthlyTimesheet[] @relation("ReviewerTimesheet")
+  
+  requestedCorrections  RequestCorrection[] @relation("CorrectionReviewer")
+  payrolls              Payroll[]
+
+  @@map("users")
+}
+
+model Role {
+  roleID   String @id @default(uuid()) @db.Uuid
+  nameRole String @unique
+  users    User[]
+
+  @@map("roles")
+}
+
+model Department {
+  departmentID   String @id @default(uuid()) @db.Uuid
+  departmentName String
+  managerID      String? @db.Uuid
+
+  // Relations
+  manager        User?  @relation("DepartmentManager", fields: [managerID], references: [userID])
+  users          User[] @relation("UserInDepartment")
+
+  @@map("departments")
+}
+
+model TimesheetEntry {
+  timesheetEntryID    String   @id @default(uuid()) @db.Uuid
+  monthlyTimesheetID  String   @db.Uuid
+  date                DateTime
+  status              String   // 'pending', 'approved', 'rejected'
+  checkIn             DateTime @db.Timestamp
+  checkOut            DateTime? @db.Timestamp
+  IPAddress           String
+  canRequestCorrection Boolean  @default(true)
+
+  // Relations
+  monthlyTimesheet    MonthlyTimesheet @relation(fields: [monthlyTimesheetID], references: [monthlyTimesheetID])
+
+  @@map("timesheet_entries")
+}
+
+model MonthlyTimesheet {
+  monthlyTimesheetID String   @id @default(uuid()) @db.Uuid
+  employeeID         String   @db.Uuid
+  reviewerID         String   @db.Uuid
+  month              Int
+  year               Int
+  status             String   // 'draft', 'submitted', 'approved', 'rejected'
+  reasonReject       String?
+  reviewedAt         DateTime?
+  createdAt          DateTime @default(now())
+  canSubmit          Boolean  @default(false)
+  isSubmitted        Boolean  @default(false)
+
+  // Relations
+  employee           User     @relation("EmployeeTimesheet", fields: [employeeID], references: [userID])
+  reviewer           User     @relation("ReviewerTimesheet", fields: [reviewerID], references: [userID])
+  entries            TimesheetEntry[]
+  corrections        RequestCorrection[]
+  payrolls           Payroll[]
+
+  @@map("monthly_timesheets")
+}
+
+model LeaveApplication {
+  leaveApplicationID String   @id @default(uuid()) @db.Uuid
+  senderID            String   @db.Uuid
+  reviewerID          String?  @db.Uuid
+  startDate           DateTime
+  endDate             DateTime
+  reason              String
+  status              String   // 'pending', 'approved', 'rejected', 'cancelled'
+  reasonReject        String?
+  typeLeaveID         String   @db.Uuid
+  createdAt           DateTime @default(now())
+  reviewedAt          DateTime?
+
+  // Relations
+  sender              User      @relation("Sender", fields: [senderID], references: [userID])
+  reviewer            User?     @relation("Reviewer", fields: [reviewerID], references: [userID])
+  typeLeave           TypeLeave @relation(fields: [typeLeaveID], references: [typeLeaveID])
+
+  @@map("leave_applications")
+}
+
+model TypeLeave {
+  typeLeaveID   String @id @default(uuid()) @db.Uuid
+  nameTypeLeave String
+  hasSalary     Float
+  applications  LeaveApplication[]
+
+  @@map("type_leaves")
+}
+
+model Notification {
+  notificationID String   @id @default(uuid()) @db.Uuid
+  senderID       String   @db.Uuid
+  receiverID     String   @db.Uuid
+  createdAt      DateTime @default(now())
+  content        String
+  isRead         Boolean  @default(false)
+  relatedType    String?  // 'warning', 'leave', 'timesheet'
+
+  // Relations
+  sender         User     @relation("NotiSender", fields: [senderID], references: [userID])
+  receiver       User     @relation("NotiReceiver", fields: [receiverID], references: [userID])
+
+  @@map("notifications")
+}
+
+model Warning {
+  warningID String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  content   String?
+  level     String?  // 'low', 'medium', 'high'
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [userID])
+
+  @@map("warnings")
+}
+
+model RequestCorrection {
+  requestCorrectionID String   @id @default(uuid()) @db.Uuid
+  monthlyTimesheetID  String   @db.Uuid
+  reason              String
+  reviewerID          String   @db.Uuid
+  status              String   // 'pending', 'approved', 'rejected'
+  reasonReject        String?
+  reviewedAt          DateTime?
+  createdAt           DateTime @default(now())
+
+  // Relations
+  monthlyTimesheet    MonthlyTimesheet @relation(fields: [monthlyTimesheetID], references: [monthlyTimesheetID])
+  reviewer            User             @relation("CorrectionReviewer", fields: [reviewerID], references: [userID])
+
+  @@map("request_corrections")
+}
+
+model Payroll {
+  payrollID           String   @id @default(uuid()) @db.Uuid
+  employeeID          String   @db.Uuid
+  month               Int
+  year                Int
+  monthlyTimesheetID  String   @db.Uuid
+  totalHours          Float
+  totalExtraHours     Float    @default(0)
+  totalSalaryByHours  Float
+
+  // Relations
+  employee            User             @relation(fields: [employeeID], references: [userID])
+  monthlyTimesheet    MonthlyTimesheet @relation(fields: [monthlyTimesheetID], references: [monthlyTimesheetID])
+
+  @@map("payrolls")
+}
